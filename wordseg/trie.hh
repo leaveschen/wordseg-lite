@@ -12,6 +12,7 @@
 #include <iterator>
 #include <memory>
 #include <utility>
+#include <functional>
 
 /* class & function section */
 
@@ -54,60 +55,64 @@ public:
 
 	size_t size() { return _size; }
 
-	bool has(T const& key) {
-		auto* node = this;
-		for (auto& bit : key) {
-			auto it = node->_branches.find(bit);
-			if (it == node->_branches.end()) {
-				return false;
-			}
-			node = node->_branches[bit].get();
-		}
-		return node->_is_leaf;
-	}
+	bool is_head(bit_type const& bit) { return !(this->_branches.find(bit) == this->_branches.end()); }
+
+	template<class Iterator>
+	bool is_head(Iterator it) { return !(this->_branches.find(*it) == this->_branches.end()); }
 
 protected:
-	template<class Iterator>
-	T _longest_match_impl(Iterator first, Iterator last) {
+	template<class Iterator, class FnBreak, class FnFinal>
+	decltype(auto) _search_impl(Iterator first, Iterator last,
+			FnBreak fn_break, FnFinal fn_final) {
 		auto* node = this;
+		auto curr = first;
 		for (auto it = first; it < last; ++it) {
+			if (node->_is_leaf) { curr = it; }
 			auto itx = node->_branches.find(*it);
 			if (itx == node->_branches.end()) {
-				return node->_key;
+				return fn_break(node, curr);
 			}
 			node = node->_branches[*it].get();
 		}
-		if (node->_is_leaf) { return node->_key; } else { return T(); }
+		if (node->_is_leaf) { curr = last; }
+		return fn_final(node, curr);
+	}
+
+public:
+	bool has(T const& key) {
+		return _search_impl(key.begin(), key.end(),
+				[](auto node, auto)->bool { return false; },
+				[](auto node, auto)->bool { return node->_is_leaf; });
 	}
 
 	template<class Iterator>
-	Iterator _longest_match_impl_2(Iterator first, Iterator last) {
-		auto* node = this;
-		for (auto it = first; it < last; ++it) {
-			auto itx = node->_branches.find(*it);
-			if (itx == node->_branches.end()) {
-				return it;
-			}
-			node = node->_branches[*it].get();
-		}
-		if (node->_is_leaf) { return last; } else { return first; }
+	bool has(Iterator first, Iterator last) {
+		return _search_impl(first, last,
+				[](auto node, auto) { return false; },
+				[](auto node, auto) { return node->_is_leaf; });
 	}
 
 public:
 	T longest_match(T const& key) {
-		//return std::move(_longest_match_impl(key.begin(), key.end()));
-		return T(key.begin(), _longest_match_impl_2(key.begin(), key.end()));
+		auto last_it = _search_impl(key.begin(), key.end(),
+				[](auto, auto curr) { return curr; },
+				[](auto, auto curr) { return curr; });
+		return T(key.begin(), last_it);
 	}
 
 	template<class Iterator>
 	T longest_match(Iterator first, Iterator last) {
-		//return std::move(_longest_match_impl(first, last));
-		return T(first, _longest_match_impl_2(first, last));
+		auto last_it = _search_impl(first, last,
+				[](auto, auto curr) { return curr; },
+				[](auto, auto curr) { return curr; });
+		return T(first, last_it);
 	}
 
 	template<class Iterator>
 	Iterator longest_match_it(Iterator first, Iterator last) {
-		return _longest_match_impl_2(first, last);
+		return _search_impl(first, last,
+				[](auto, auto curr) { return curr; },
+				[](auto, auto curr) { return curr; });
 	}
 };
 
