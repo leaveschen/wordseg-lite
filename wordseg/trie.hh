@@ -138,6 +138,63 @@ public:
 	}
 };
 
+template<class T, class Value>
+class ValuedTrie : public NaiveTrie<T> {
+protected:
+	// members
+	Value _value;
+
+public:
+	// constructor & destructor
+	ValuedTrie() : _value(), NaiveTrie<T>() {}
+	~ValuedTrie() {}
+
+protected:
+	template<class Iterator>
+	bool _get_value_impl(Iterator first, Iterator last, Value& value) {
+		auto* node = this;
+		auto curr = first;
+		for (auto it = first; it < last; ++it) {
+			auto itx = node->_branches.find(*it);
+			if (itx == node->_branches.end()) { return false; }
+			node = node->_branches[*it].get();
+		}
+		if (node->_is_leaf) {
+			value = node->_value;
+			return true;
+		}
+		return false;
+	}
+
+public:
+	// interface
+	void insert(T const& key, Value const& value) {
+		auto* node = this;
+		for (auto& bit : key) {
+			auto it = node->_branches.find(bit);
+			if (it == node->_branches.end()) {
+				node->_branches[bit] = std::make_shared<NaiveTrie<T>>();
+			}
+			node = node->_branches[bit].get();
+		}
+		node->_is_leaf = true;
+		node->_key = key;
+		++(this->_size);
+		_value = value; // copy value
+	}
+
+	// get value
+	bool get_value(T const key, Value& value) {
+		return _get_value_impl(key.begin(), key.end(), value);
+	}
+
+	template<class Iterator>
+	bool get_value(Iterator first, Iterator last, Value& value) {
+		return _get_value_impl(first, last, value);
+	}
+
+};
+
 template<class T>
 class DoubleArrayTrie {
 public:
