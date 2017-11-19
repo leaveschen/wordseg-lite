@@ -78,6 +78,19 @@ protected:
 		return fn_final(node, curr);
 	}
 
+	template<class Iterator>
+	std::vector<size_t> _search_all_impl(Iterator first, Iterator last) {
+		std::vector<size_t> offset;
+		auto* node = this;
+		for (auto it = first; it < last; ++it) {
+			auto itx = node->_branches.find(*it);
+			if (itx == node->_branches.end()) { break; }
+			node = node->_branches[*it].get();
+			if (node->_is_leaf) { offset.push_back(it - first); }
+		}
+		return offset;
+	}
+
 public:
 	bool has(T const& key) {
 		return _search_impl(key.begin(), key.end(),
@@ -113,6 +126,15 @@ public:
 		return _search_impl(first, last,
 				[](auto, auto curr) { return curr; },
 				[](auto, auto curr) { return curr; });
+	}
+
+	std::vector<size_t> search_all(T const& key) {
+		return _search_all_impl(key.begin(), key.end());
+	}
+
+	template<class Iterator>
+	std::vector<size_t> search_all(Iterator first, Iterator last) {
+		return _search_all_impl(first, last);
 	}
 };
 

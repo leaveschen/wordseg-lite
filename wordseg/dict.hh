@@ -18,25 +18,21 @@
 
 namespace wordseg {
 
-template<class T>
-class DictWord : public detail::NaiveTrie<T> {
-private:
-	std::unordered_set<T> _words;
-
+// word search dict
+class DictWord : public detail::NaiveTrie<std::vector<std::string>> {
 public:
 	// constructor & destructor
-	DictWord() : detail::NaiveTrie<T>(), _words() {}
+	DictWord() : detail::NaiveTrie<std::vector<std::string>>() {}
 	~DictWord() {}
 
-public:
-	// read from file
-	void read(std::string const& file_name) {
-		std::fstream fin(file_name, std::ios::in);
+	// load from file
+	void load(std::string const& src_file) {
+		std::fstream fin(src_file, std::ios::in);
 		constexpr size_t N = 256;
 		char tmp[N];
 		while (fin.getline(tmp, N)) {
-			auto x = split(std::string(tmp));
-			this->insert(make_string<wordseg::string>(x[0]));
+			auto x = string::split(std::string(tmp), " ");
+			this->insert(string::to_vec(x[0]));
 		}
 	}
 };

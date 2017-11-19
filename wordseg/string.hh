@@ -1,5 +1,5 @@
 //
-// Created by c on 19/08/2017 01:57 PM
+// Created by c on 19/11/2017 03:09 PM
 //
 
 #ifndef WORDSEG_STRING_HH
@@ -10,123 +10,76 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <algorithm>
 
 /* class & function section */
 
 namespace wordseg {
 
-namespace detail {
-
-// code convert container, singleton
-template<class CharT>
-class cvt_container {
+// some string handle methods
+class string {
 public:
-	using value_type = CharT;
-	using facet_t = std::codecvt<value_type, char, std::mbstate_t>;
+	// type define
+	using StrT = std::string;
+	using CharT = typename std::string::value_type;
 
-private:
-	// utility wrapper to adapt locale-bound facets for wstring/wbuffer convert
-	template<class Facet>
-	struct deletable_facet : Facet {
-		template<class ...Args>
-		deletable_facet(Args&& ...args) : Facet(std::forward<Args>(args)...) {}
-		~deletable_facet() {}
-	};
+	// strip
+	static StrT strip(StrT const& raw, StrT const& str = " \t\n") {
+		std::set<CharT> cs(str.begin(), str.end());
+		StrT ret;
+		bool flag = false;
+		bool flagr = false;
+		for (auto it = raw.begin(), itr = it+raw.size()-1; it <= itr; ) {
+			if (flag and flagr) { ret.insert(ret.begin(), it, itr+1); break; }
+			if (!flag) { if (cs.count(*it) == 0) flag = true; else ++it; }
+			if (!flagr) { if (cs.count(*itr) == 0) flagr = true; else --itr; }
+		}
+		return ret;
+	}
 
-public:
-	// facet
-	using cvt_t = std::wstring_convert<deletable_facet<facet_t>, value_type>;
-	cvt_t _cvt;
+	// split
+	static std::vector<StrT> split(StrT const& raw, StrT const& str) {
+		std::vector<StrT> ret;
+		size_t pfirst = 0;
+		size_t plast = 0;
+		while (plast < raw.size()) {
+			plast = raw.find_first_of(str, pfirst);
+			if (plast == StrT::npos) {
+				if (raw.size() > pfirst) ret.push_back(raw.substr(pfirst, raw.size()-pfirst));
+				break;
+			} else {
+				if (plast > pfirst) ret.push_back(raw.substr(pfirst, plast-pfirst));
+				pfirst = plast + 1;
+			}
+		}
+		return ret;
+	}
 
-private:
-	// constructor
-	cvt_container() {}
-
-public:
-	inline static cvt_t* cvt() {
-		static cvt_container inst;
-		return &inst._cvt;
+	// to vector(for chinese utf8 encoded string)
+	static std::vector<StrT> to_vec(StrT const& str) {
+		std::vector<StrT> ret;
+		size_t nbyte = 0;
+		for (size_t i = 0; i < str.size(); ) {
+			if ((str[i] & 0xfc) == 0xfc) {
+				nbyte = 6;
+			} else if ((str[i] & 0xf8) == 0xf8) {
+				nbyte = 5;
+			} else if ((str[i] & 0xf0) == 0xf0) {
+				nbyte = 4;
+			} else if ((str[i] & 0xe0) == 0xe0) {
+				nbyte = 3;
+			} else if ((str[i] & 0xc0) == 0xc0) {
+				nbyte = 2;
+			} else {
+				nbyte = 1;
+			}
+			ret.push_back(str.substr(i, nbyte));
+			i += nbyte;
+		}
+		return ret;
 	}
 };
 
-// various converter
-// convert from char to CharT
-template<class CharT>
-inline std::basic_string<CharT> from_bytes(std::string const& str) {
-	return detail::cvt_container<CharT>::cvt()->from_bytes(str);
-}
-
-// convert from CharT to char
-template<class CharT>
-inline std::basic_string<char> to_bytes(std::basic_string<CharT> const& str) {
-	return detail::cvt_container<CharT>::cvt()->to_bytes(str);
-}
-
-} // namespace detail
-
-using char_t = char16_t;
-using string = std::basic_string<char_t>;
-
-// make string function
-template<class StrT>
-StrT make_string(std::string const& str) {
-	return detail::from_bytes<typename StrT::value_type>(str);
-}
-template<>
-std::string make_string<std::string>(std::string const& str) { return str; }
-
-// for convenient
-string make_string_chs(std::string const& str) { return std::move(make_string<string>(str)); }
-
-// string methods
-template<class StrT>
-decltype(auto) strip(StrT&& raw, std::string const& str = " \t\n") {
-	using CharT = typename StrT::value_type;
-	auto cc = make_string<StrT>(str);
-	std::set<CharT> cs(cc.begin(), cc.end());
-	std::basic_string<CharT> ret;
-	bool flag = false, flagr = false;
-	for (auto it = raw.begin(), itr = raw.end()-1; it <= itr; ) {
-		if (flag and flagr) { ret.insert(ret.begin(), it, itr+1); break; }
-		if (!flag) { if (cs.count(*it) == 0) flag = true; else ++it; }
-		if (!flagr) { if (cs.count(*itr) == 0) flagr = true; else --itr; }
-	}
-	return std::forward<StrT>(ret);
-}
-
-template<class StrT>
-std::vector<StrT> split(StrT&& raw, std::string const& str = " \t\n") {
-	using CharT = typename StrT::value_type;
-	auto cc = make_string<StrT>(str);
-	std::vector<StrT> ret;
-	typename StrT::size_type pfirst = 0;
-	typename StrT::size_type plast = 0;
-	while (plast < raw.size()) {
-		plast = raw.find_first_of(cc, pfirst);
-		if (plast == StrT::npos) {
-			if (raw.size() > pfirst) ret.push_back(raw.substr(pfirst, raw.size()-pfirst));
-			break;
-		} else {
-			if (plast > pfirst) ret.push_back(raw.substr(pfirst, plast-pfirst));
-			pfirst = plast + 1;
-		}
-	}
-	return ret;
-}
-
 } // namespace wordseg
-
-// various string type stream output
-inline std::ostream& operator<<(std::ostream& os, wordseg::char_t const& str) {
-	wordseg::string ss;
-	ss.push_back(str);
-	return os << wordseg::detail::to_bytes(ss);
-}
-
-inline std::ostream& operator<<(std::ostream& os, wordseg::string const& str) {
-	return os << wordseg::detail::to_bytes(str);
-}
 
 #endif// WORDSEG_STRING_HH
 
